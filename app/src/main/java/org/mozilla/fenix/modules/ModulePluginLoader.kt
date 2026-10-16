@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.content.res.AssetManager
-import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
 import android.util.Log
@@ -81,14 +80,34 @@ internal object ModulePluginLoader {
 
         validate(module)
 
-        val resources = Resources(
-            AssetManager().apply { addAssetPath(archive.absolutePath) },
-            context.resources.displayMetrics,
-            context.resources.configuration,
-        )
+        val resources = createResources(context, archive.absolutePath)
 
         Log.i(TAG, "Loaded module ${module.id} v${module.version} from ${archive.name}")
         LoadedModule(installId, module, resources, packageInfo.packageName)
+    }
+
+    /**
+     * Builds a [Resources] view over the archive, so a module can ship its own strings and drawables.
+     *
+     * Both the [AssetManager] constructor and [AssetManager.addAssetPath] are hidden from the Android SDK but public in
+     * the framework itself, which is why they are reached through reflection. This is the only way to read resources
+     * out of an archive that is not installed as a package; on Android 9+ both calls are on the grey list, which logs
+     * warning instead of failing.
+     */
+    private fun createResources(context: Context, archivePath: String): Resources {
+        val assetManagerClass = AssetManager::class.java
+        val assetManager = assetManagerClass.getConstructor().newInstance()
+
+        val errorCode = assetManagerClass
+            .getMethod("addAssetPath", String::class.java)
+            .invoke(assetManager, archivePath) as Int
+        check(errorCode != 0) { "Archive has no readable resources (code $errorCode)" }
+
+        return Resources(
+            assetManager,
+            context.resources.displayMetrics,
+            context.resources.configuration,
+        )
     }
 
     /**
