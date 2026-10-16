@@ -149,7 +149,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
     }
 
     /**
-     * Renders the settings a module exposed through [ModuleHost.addSetting], directly under its own switch.
+     * Renders the settings a module published through `ModuleHost.addSetting`, directly under its own switch.
      *
      * Modules own the values: every change is handed back to the module callback, which is expected to store the new
      * value and publish an updated setting.
