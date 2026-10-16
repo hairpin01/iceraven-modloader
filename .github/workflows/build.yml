@@ -16,50 +16,47 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
 
-    env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      ANDROID_HOME: ${{ github.workspace }}/android-sdk
-
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          fetch-depth: 1
+          submodules: 'true'
+          fetch-depth: 0
 
-      # AGP 9.4 / Gradle 9.7 run fine on 21, and the build targets JVM bytecode 17 (jvmTargetCompatibility).
-      - name: Set up JDK 21
+      # Same JDK as the project's own release workflow.
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
+          java-version: 17
           distribution: temurin
-          java-version: '21'
 
-      # android-actions/setup-android@v3 currently fails while running the legacy `sdkmanager tools`, so the command
-      # line tools are installed by hand into a job local SDK instead.
-      - name: Install Android command line tools
+      # The repository ships the SDK bootstrap it uses for releases: cmdline tools, license seeds and the NDK that
+      # Gradle refuses to fetch on its own. Gradle then installs the platform and build tools itself.
+      - name: Install Android SDK with pieces Gradle skips
+        run: ./automation/iceraven/install-sdk.sh
+
+      - name: Inspect memory
+        run: free -h
+
+      # patch_android_components.sh fixes the version catalog paths and dependency declarations inside the
+      # android-components submodule, so the build cannot be configured without it. Its helpers call `python`, which
+      # newer runner images no longer provide under that name.
+      - name: Prepare android-components
         run: |
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          curl -fsSL -o /tmp/cmdline-tools.zip \
-            https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
-          unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          if ! command -v python > /dev/null; then
+            sudo ln -sf "$(command -v python3)" /usr/local/bin/python
+          fi
+          ./automation/iceraven/patch_android_components.sh
 
-      # compileSdk comes from android-components/.config.yml (37.1) and the build tools version from
-      # gradle/mozconfig.gradle (36.0.0).
-      - name: Install SDK packages
-        run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "platform-tools" "platforms;android-37.1" "build-tools;36.0.0"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       # forkDebug is the Iceraven build type: debug signed, applicationId suffix ".iceraven.debug",
       # so the result can be side installed next to the released app.
-      - name: Build
-        run: ./gradlew app:assembleForkDebug --stacktrace --max-workers=3
+      - name: Build forkDebug variant of app
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-XX:MaxMetaspaceSize=4g -Xms1g -Xmx7g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dev/stderr"
+        run: ./gradlew app:assembleForkDebug --stacktrace --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
