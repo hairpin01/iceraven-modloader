@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="Example GeckoMod"
+        android:supportsRtl="true">
+
+        <!--
+            Everything below is read by GeckoLoader from the archive manifest. The entry point must be a public class with
+            a no-argument constructor implementing BrowserModule; the permissions listed here are the ones the user
+            actually grants, so a module can not use more than what is declared.
+        -->
+        <meta-data
+            android:name="org.mozilla.fenix.modules.entrypoint"
+            android:value="com.example.geckomod.ExampleModule" />
+
+        <meta-data
+            android:name="org.mozilla.fenix.modules.name"
+            android:value="Example GeckoMod" />
+
+        <meta-data
+            android:name="org.mozilla.fenix.modules.description"
+            android:value="Demonstrates menu, toolbar, settings and theme hooks" />
+
+        <meta-data
+            android:name="org.mozilla.fenix.modules.version"
+            android:value="1" />
+
+        <meta-data
+            android:name="org.mozilla.fenix.modules.author"
+            android:value="Iceraven GeckoLoader team" />
+
+        <meta-data
+            android:name="org.mozilla.fenix.modules.update_url"
+            android:value="https://github.com/hairpin01/iceraven-modloader/releases" />
+
+        <meta-data
+            android:name="org.mozilla.fenix.modules.permissions"
+            android:value="MENU_ITEMS,TOOLBAR,SETTINGS,THEME,PREFERENCES_READ" />
+    </application>
+</manifest>

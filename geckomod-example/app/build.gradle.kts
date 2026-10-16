@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.iceravenmodule"
+    namespace = "com.example.geckomod"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.iceravenmodule"
+        applicationId = "com.example.geckomod"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

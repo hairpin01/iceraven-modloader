@@ -52,6 +52,26 @@ class ModulesFragment : PreferenceFragmentCompat() {
             }
         }
 
+        findPreference<SwitchPreferenceCompat>(getString(R.string.pref_key_modules_safe_mode))?.apply {
+            val preferences = ModulePreferences(requireContext())
+            isChecked = preferences.safeMode
+            setOnPreferenceChangeListener { _, newValue ->
+                val enabled = newValue as Boolean
+                preferences.safeMode = enabled
+                if (!enabled) {
+                    // Leaving safe mode is the user saying the module is worth another try.
+                    preferences.clearAllFailures()
+                }
+                ModuleManager.reload()
+                showMessage(
+                    getString(
+                        if (enabled) R.string.modules_safe_mode_on else R.string.modules_safe_mode_off,
+                    ),
+                )
+                true
+            }
+        }
+
         findPreference<SwitchPreferenceCompat>(getString(R.string.pref_key_modules_allow_untrusted))?.apply {
             val preferences = ModulePreferences(requireContext())
             isChecked = preferences.allowUntrusted
@@ -120,7 +140,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
                 key = getString(R.string.pref_key_modules_switch) + record.installId
                 isPersistent = false
                 isIconSpaceReserved = false
-                title = record.module?.name ?: record.fileName
+                title = record.info?.name ?: record.module?.name ?: record.fileName
                 summary = summaryFor(record)
                 isChecked = record.enabled && record.error == null
                 isEnabled = record.error == null
@@ -208,8 +228,9 @@ class ModulesFragment : PreferenceFragmentCompat() {
     private fun summaryFor(record: ModuleRecord): CharSequence {
         val context = requireContext()
         val status = record.error
+            ?: record.info?.description?.takeIf { it.isNotBlank() }
             ?: record.module?.description?.takeIf { it.isNotBlank() }
-            ?: record.module?.let {
+            ?: record.info?.let {
                 context.getString(R.string.modules_info_format, it.name, it.version, it.id)
             }
             ?: record.fileName
@@ -223,32 +244,50 @@ class ModulesFragment : PreferenceFragmentCompat() {
 
     private fun showDetails(record: ModuleRecord) {
         val context = requireContext()
+        val info = record.info
         val module = record.module
         val details = buildString {
-            if (module != null) {
-                appendLine(getString(R.string.modules_info_format, module.name, module.version, module.id))
-                if (module.description.isNotBlank()) appendLine(module.description)
-                record.packageName?.let {
-                    appendLine(getString(R.string.modules_info_package_format, it))
+            if (info != null) {
+                appendLine(getString(R.string.modules_info_format, info.name, info.version, info.id))
+                info.description?.let { appendLine(it) }
+                info.versionName?.let {
+                    appendLine(getString(R.string.modules_info_version_name_format, it))
                 }
+                info.author?.let { appendLine(getString(R.string.modules_info_author_format, it)) }
+                appendLine(getString(R.string.modules_info_package_format, info.packageName))
+            }
+            if (module != null) {
                 val permissions = module.permissions
                     .takeIf { it.isNotEmpty() }
                     ?.joinToString { permission -> permission.name }
                     ?: getString(R.string.modules_info_none)
                 appendLine(getString(R.string.modules_info_permissions_format, permissions))
-                if (!record.enabled) appendLine(getString(R.string.modules_info_disabled))
             }
+            if (record.enabled.not() && module != null) appendLine(getString(R.string.modules_info_disabled))
             record.error?.let { appendLine(it) }
         }.trim()
 
+        val updateLabel = info?.updateLabel
         MaterialAlertDialogBuilder(context)
             .setTitle(getString(R.string.modules_info_title))
             .setMessage(details)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.modules_uninstall) { _, _ ->
-                ModuleManager.uninstall(requireContext(), record.installId)
+            .apply {
+                if (updateLabel != null) {
+                    setNeutralButton(R.string.modules_update_open) { _, _ -> openUrl(updateLabel) }
+                }
+                setPositiveButton(R.string.modules_uninstall) { _, _ ->
+                    ModuleManager.uninstall(requireContext(), record.installId)
+                }
             }
             .show()
+    }
+
+    /** Opens the module's release page. The URL is validated by [ModuleInfo.updateLabel] before it gets here. */
+    private fun openUrl(url: String) {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure { showMessage(getString(R.string.modules_update_failed)) }
     }
 
     private fun install(uri: Uri) {
@@ -276,6 +315,6 @@ class ModulesFragment : PreferenceFragmentCompat() {
         )
 
         private const val MODULE_DOCS_URL =
-            "https://github.com/fork-maintainers/iceraven-browser/tree/iceraven/modules"
+            "https://github.com/hairpin01/iceraven-modloader/blob/runtime-modules/geckomod/README.md"
     }
 }

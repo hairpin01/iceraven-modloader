@@ -40,9 +40,15 @@ import org.mozilla.fenix.utils.Settings
  */
 object ModuleManager {
 
-    private const val TAG = "IceravenModules"
-    private const val MODULES_DIR = "modules"
+    private const val TAG = "GeckoLoader"
+    private const val MODULES_DIR = "geckomod"
+    private const val LEGACY_MODULES_DIR = "modules"
     private const val INSTALL_ID_LENGTH = 16
+
+    /** Consecutive load failures of one module after which safe mode switches itself on. */
+    private const val MAX_FAILURES = 3
+
+    private const val SAFE_MODE_NOTE = "Not loaded, safe mode is on"
     private const val LOADER_THREAD_NAME = "iceraven-modules"
 
     /** Everything the module manager screen needs to render one installed archive. */
@@ -55,8 +61,8 @@ object ModuleManager {
         val enabled: Boolean,
         /** Archive file name, shown in the UI so the user can identify it. */
         val fileName: String,
-        /** Application id of the archive, for support purposes. */
-        val packageName: String? = null,
+        /** Name, version, author and update URL read from the archive manifest. */
+        val info: ModuleInfo? = null,
         /** Human readable reason why the archive was rejected. */
         val error: String? = null,
     )
@@ -141,14 +147,16 @@ object ModuleManager {
     }
 
     /**
-     * Copies the archive behind [uri] into the private modules directory and loads it.
+     * Copies the archive behind [uri] into the private GeckoMod directory and loads it.
      *
      * Returns the install id on success, or a failure with a message suitable for showing to the user. The caller does
      * not need to call [reload] afterwards.
+     *
+     * Must be called off the main thread: copying and reading the archive touches disk, which Fenix treats as fatal.
      */
     fun install(context: Context, uri: Uri): Result<String> {
         val app = context.applicationContext
-        val directory = File(app.filesDir, MODULES_DIR).apply { mkdirs() }
+        val directory = modulesDirectory(app)
         val incoming = File(directory, "incoming_${System.currentTimeMillis()}.apk")
 
         return runCatching {
@@ -169,16 +177,19 @@ object ModuleManager {
             }
 
             val target = File(directory, "$installId.apk")
+            // Archives of the previous install stay read-only, make sure an update can take their place.
+            target.setWritable(true, true)
             if (!incoming.renameTo(target)) {
                 incoming.copyTo(target, overwrite = true)
                 incoming.delete()
             }
             installId
         }.onSuccess { installId ->
-            Log.i(TAG, "Installed module archive $installId")
+            Log.i(TAG, "Installed GeckoMod archive $installId")
             reload()
         }.onFailure { failure ->
             Log.w(TAG, "Module install failed", failure)
+            incoming.setWritable(true, true)
             incoming.delete()
         }
     }
@@ -196,7 +207,8 @@ object ModuleManager {
         publish()
 
         onLoaderThread {
-            val archive = File(File(app.filesDir, MODULES_DIR), "$installId.apk")
+            val archive = File(modulesDirectory(app), "$installId.apk")
+            archive.setWritable(true, true)
             if (archive.exists() && !archive.delete()) {
                 Log.w(TAG, "Could not delete archive ${archive.name}")
             }
@@ -242,9 +254,72 @@ object ModuleManager {
         }.onFailure { Log.w(TAG, "Toolbar action $actionId of a module failed", it) }
     }
 
+    /**
+     * Where GeckoMod archives live.
+     *
+     * `noBackupFilesDir` is used instead of `filesDir` so the archives are excluded from cloud backups, and instead of
+     * `codeCacheDir` because the system may clear that at any time and would silently uninstall every module.
+     */
+    private fun modulesDirectory(context: Context): File =
+        File(context.noBackupFilesDir, MODULES_DIR).apply { mkdirs() }
+
+    /**
+     * Moves archives installed by older builds, which stored them in `filesDir/modules`, into [directory].
+     *
+     * Those files are still writable, which is exactly what dex loading refuses, so they have to move as well.
+     */
+    private fun migrateLegacyArchives(context: Context, directory: File) {
+        val legacy = File(context.filesDir, LEGACY_MODULES_DIR)
+        val archives = legacy.listFiles { file -> file.isFile }.orEmpty()
+        if (archives.isEmpty()) return
+
+        archives.forEach { archive ->
+            val target = File(directory, archive.name)
+            if (!target.exists()) {
+                archive.copyTo(target)
+            }
+            archive.setWritable(true, true)
+            archive.delete()
+        }
+        Log.i(TAG, "Moved ${archives.size} module archive(s) out of the legacy directory")
+    }
+
+    /**
+     * Counts a failed load and trips safe mode once a module failed [MAX_FAILURES] times.
+     *
+     * A GeckoMod that cannot even be loaded, or whose `onEnable` throws, is the usual reason the browser becomes
+     * unusable after an update. Safe mode keeps such a module from taking the browser down again and again.
+     */
+    private fun noteFailure(prefs: ModulePreferences, installId: String) {
+        val failures = prefs.recordFailure(installId)
+        if (failures >= MAX_FAILURES) {
+            Log.w(TAG, "GeckoMod $installId failed $failures times, enabling safe mode")
+            prefs.safeMode = true
+        }
+    }
+
+    /** Record of an archive that was deliberately not loaded, used while safe mode is on. */
+    private fun unloadedRecord(fileName: String): ModuleRecord = ModuleRecord(
+        installId = fileName.substringBeforeLast('.'),
+        module = null,
+        enabled = false,
+        fileName = fileName,
+        error = SAFE_MODE_NOTE,
+    )
+
+    /** Replaces the known records with [newRecords] and drops every host that is no longer needed. */
+    private fun publishRecords(newRecords: List<ModuleRecord>) {
+        synchronized(lock) {
+            hosts.keys.forEach { hostId -> hosts.remove(hostId)?.dispose() }
+            records.clear()
+            records.putAll(newRecords.associateBy { it.installId })
+        }
+        publish()
+    }
+
     private fun loadAll(context: Context, prefs: ModulePreferences) {
-        val settings = Settings(context)
-        val directory = File(context.filesDir, MODULES_DIR)
+        val directory = modulesDirectory(context)
+        migrateLegacyArchives(context, directory)
         val archives = directory.listFiles { file ->
             file.isFile && (
                 file.name.endsWith(".apk", ignoreCase = true) ||
@@ -252,9 +327,25 @@ object ModuleManager {
                 )
         }.orEmpty().sortedBy { it.name }
 
+        if (prefs.safeMode) {
+            Log.i(TAG, "Safe mode is on, not loading ${archives.size} archive(s)")
+            publishRecords(archives.map { archive -> unloadedRecord(archive.name) })
+            return
+        }
+
+        val settings = Settings(context)
         val loadedHosts = LinkedHashMap<String, ModuleHostImpl>()
-        val loadedRecords = archives.mapNotNull { archive ->
-            loadArchive(context, prefs, settings, archive, loadedHosts)
+        val loadedRecords = mutableListOf<ModuleRecord>()
+
+        for (archive in archives) {
+            val record = loadArchive(context, prefs, settings, archive, loadedHosts) ?: continue
+            loadedRecords += record
+
+            // A GeckoMod that keeps killing the browser trips safe mode, stop before the next one does the same.
+            if (prefs.safeMode) {
+                Log.w(TAG, "Stopped loading GeckoMods, safe mode was enabled by ${record.installId}")
+                break
+            }
         }
 
         synchronized(lock) {
@@ -282,7 +373,8 @@ object ModuleManager {
 
         val loaded: LoadedModule = ModulePluginLoader.load(context, archive, installId, prefs)
             .getOrElse { failure ->
-                Log.w(TAG, "Module ${archive.name} rejected", failure)
+                Log.w(TAG, "GeckoMod ${archive.name} rejected", failure)
+                noteFailure(prefs, installId)
                 return ModuleRecord(
                     installId = installId,
                     module = null,
@@ -298,13 +390,14 @@ object ModuleManager {
                 module = loaded.module,
                 enabled = false,
                 fileName = archive.name,
-                packageName = loaded.packageName,
+                info = loaded.info,
             )
         }
 
         val host = ModuleHostImpl(
             module = loaded.module,
             resources = loaded.resources,
+            granted = loaded.grantedPermissions,
             browserSettings = settings,
             onChanged = ::publish,
         )
@@ -314,23 +407,25 @@ object ModuleManager {
         } catch (failure: Throwable) {
             Log.w(TAG, "onEnable failed for ${loaded.module.id}", failure)
             host.dispose()
+            noteFailure(prefs, installId)
             return ModuleRecord(
                 installId = installId,
                 module = loaded.module,
                 enabled = enabled,
                 fileName = archive.name,
-                packageName = loaded.packageName,
+                info = loaded.info,
                 error = "onEnable failed: ${failure.message ?: failure::class.java.simpleName}",
             )
         }
 
+        prefs.clearFailures(installId)
         loadedHosts[installId] = host
         return ModuleRecord(
             installId = installId,
             module = loaded.module,
             enabled = true,
             fileName = archive.name,
-            packageName = loaded.packageName,
+            info = loaded.info,
         )
     }
 

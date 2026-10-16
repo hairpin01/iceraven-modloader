@@ -5,6 +5,7 @@
 package org.mozilla.fenix.modules
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
@@ -27,10 +28,25 @@ import org.mozilla.fenix.modules.api.ModulePermission
  */
 internal object ModulePluginLoader {
 
-    private const val TAG = "IceravenModules"
+    private const val TAG = "GeckoLoader"
 
     /** Manifest meta-data holding the fully qualified name of the [BrowserModule] implementation. */
     const val META_ENTRY_POINT = "org.mozilla.fenix.modules.entrypoint"
+
+    /** Manifest meta-data holding the display name. Falls back to the archive label. */
+    const val META_NAME = "org.mozilla.fenix.modules.name"
+
+    /** Manifest meta-data holding a one line description. */
+    const val META_DESCRIPTION = "org.mozilla.fenix.modules.description"
+
+    /** Manifest meta-data holding the numeric version. Falls back to the archive version code. */
+    const val META_VERSION = "org.mozilla.fenix.modules.version"
+
+    /** Manifest meta-data holding the author. */
+    const val META_AUTHOR = "org.mozilla.fenix.modules.author"
+
+    /** Manifest meta-data holding an https URL with releases of the module. */
+    const val META_UPDATE_URL = "org.mozilla.fenix.modules.update_url"
 
     /** Manifest meta-data holding a comma separated list of [ModulePermission] names. */
     const val META_PERMISSIONS = "org.mozilla.fenix.modules.permissions"
@@ -41,6 +57,8 @@ internal object ModulePluginLoader {
         val module: BrowserModule,
         val resources: Resources,
         val packageName: String,
+        val info: ModuleInfo,
+        val grantedPermissions: Set<ModulePermission>,
     )
 
     /**
@@ -70,8 +88,8 @@ internal object ModulePluginLoader {
             ?: error("Manifest is missing $META_ENTRY_POINT meta-data")
 
         val classLoader = DexClassLoader(
-            archive.absolutePath,
-            File(context.codeCacheDir, "module_dex").apply { mkdirs() }.absolutePath,
+            dexPathOf(context, archive),
+            File(context.codeCacheDir, "geckomod_dex").apply { mkdirs() }.absolutePath,
             null,
             ModulePluginLoader::class.java.classLoader,
         )
@@ -81,11 +99,82 @@ internal object ModulePluginLoader {
 
         validate(module)
 
+        val permissions = grantedPermissions(applicationInfo, module)
         val resources = createResources(context, archive.absolutePath)
+        val info = readInfo(context, packageInfo, module)
 
-        Log.i(TAG, "Loaded module ${module.id} v${module.version} from ${archive.name}")
-        LoadedModule(installId, module, resources, packageInfo.packageName)
+        Log.i(TAG, "Loaded GeckoMod ${info.id} v${info.version} from ${archive.name}")
+        LoadedModule(installId, module, resources, packageInfo.packageName, info, permissions)
     }
+
+    /**
+     * Makes the archive read-only before it is handed to [DexClassLoader].
+     *
+     * ART refuses to map a dex file the calling process is allowed to write to ("Writable dex file ... is not
+     * allowed"), so an archive sitting in the app's own data directory has to be locked down first. The containing
+     * directory stays writable, so replacing an archive on update still works.
+     */
+    private fun dexPathOf(context: Context, archive: File): String {
+        if (archive.canWrite() && !archive.setWritable(false, false)) {
+            Log.w(TAG, "Could not make ${archive.name} read-only, dex loading may be refused")
+        }
+        return archive.absolutePath
+    }
+
+    /**
+     * Reads the manifest capabilities and refuses a module that asks for more than it declared.
+     *
+     * The manifest, not the code, is what the user sees before installing, so it has to be the authority here.
+     */
+    private fun grantedPermissions(
+        applicationInfo: ApplicationInfo,
+        module: BrowserModule,
+    ): Set<ModulePermission> {
+        val declared = applicationInfo.metaData?.get(META_PERMISSIONS)
+            ?.toString()
+            ?.split(',')
+            ?.mapNotNull { name -> ModulePermission.entries.firstOrNull { it.name == name.trim() } }
+            ?.toSet()
+            ?: module.permissions
+
+        require(declared.containsAll(module.permissions)) {
+            "Module ${module.id} requests more permissions than its manifest declares"
+        }
+        return declared
+    }
+
+    private fun readInfo(
+        context: Context,
+        packageInfo: PackageInfo,
+        module: BrowserModule,
+    ): ModuleInfo {
+        val metaData = packageInfo.applicationInfo?.metaData
+        val label = packageInfo.applicationInfo
+            ?.let { applicationInfo ->
+                runCatching { applicationInfo.loadLabel(context.packageManager).toString() }.getOrNull()
+            }
+            ?.takeIf { it.isNotBlank() }
+
+        return ModuleInfo(
+            id = module.id,
+            name = metaData?.get(META_NAME)?.toString()?.takeIf { it.isNotBlank() } ?: label ?: module.name,
+            description = metaData?.get(META_DESCRIPTION)?.toString()?.takeIf { it.isNotBlank() }
+                ?: module.description.takeIf { it.isNotBlank() },
+            version = metaData?.get(META_VERSION)?.toString()?.toIntOrNull()
+                ?: versionOf(packageInfo)
+                ?: module.version,
+            versionName = packageInfo.versionName,
+            author = metaData?.get(META_AUTHOR)?.toString()?.takeIf { it.isNotBlank() },
+            updateUrl = metaData?.get(META_UPDATE_URL)?.toString()?.takeIf { it.isNotBlank() },
+            packageName = packageInfo.packageName,
+        )
+    }
+
+    /** Long version code as a plain number, so it can be compared against the declared version. */
+    private fun versionOf(packageInfo: PackageInfo): Int? = runCatching {
+        @Suppress("DEPRECATION")
+        packageInfo.versionCode.toLong().toInt()
+    }.getOrNull()
 
     /**
      * Builds a [Resources] view over the archive, so a module can ship its own strings and drawables.
@@ -132,7 +221,7 @@ internal object ModulePluginLoader {
 
         val trusted = preferences.trustedSigners.ifEmpty { browserFingerprints(context) }
         require(archiveSigners.any { it in trusted }) {
-            "Signature ${archiveSigners.first()} is not trusted. Enable developer mode in Settings > Modules."
+            "Signature ${archiveSigners.first()} is not trusted. Enable developer mode in Settings > GeckoLoader."
         }
     }
 

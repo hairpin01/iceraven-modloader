@@ -20,13 +20,14 @@ import org.mozilla.fenix.utils.Settings
 /**
  * Browser side implementation of [ModuleHost] handed to a single loaded module.
  *
- * Every method checks [BrowserModule.permissions] first, so a module can not do more than it declared even if it is
- * modified after installation. All mutable state is guarded by [lock] because modules are enabled on the loader thread
- * while menu items are read on the main thread.
+ * Every method checks the permissions declared in the module's manifest first, so a module can not do more than what
+ * the user agreed to install, even if the archive was modified afterwards. All mutable state is guarded by [lock]
+ * because modules are enabled on the loader thread while menu items are read on the main thread.
  */
 internal class ModuleHostImpl(
     private val module: BrowserModule,
     override val resources: Resources,
+    private val granted: Set<ModulePermission>,
     browserSettings: Settings,
     private val onChanged: () -> Unit,
 ) : ModuleHost {
@@ -55,7 +56,7 @@ internal class ModuleHostImpl(
         get() = synchronized(lock) { themeOverrides.mapValues { it.value.toMap() } }
 
     override fun addMenuItem(item: ModuleMenuItem) {
-        require(ModulePermission.MENU_ITEMS in module.permissions) {
+        require(ModulePermission.MENU_ITEMS in granted) {
             "Module ${module.id} did not declare ${ModulePermission.MENU_ITEMS}"
         }
         synchronized(lock) {
@@ -74,7 +75,7 @@ internal class ModuleHostImpl(
     }
 
     override fun addToolbarAction(action: ModuleToolbarAction) {
-        require(ModulePermission.TOOLBAR in module.permissions) {
+        require(ModulePermission.TOOLBAR in granted) {
             "Module ${module.id} did not declare ${ModulePermission.TOOLBAR}"
         }
         synchronized(lock) {
@@ -93,7 +94,7 @@ internal class ModuleHostImpl(
     }
 
     override fun addSetting(setting: ModuleSetting) {
-        require(ModulePermission.SETTINGS in module.permissions) {
+        require(ModulePermission.SETTINGS in granted) {
             "Module ${module.id} did not declare ${ModulePermission.SETTINGS}"
         }
         synchronized(lock) {
@@ -122,7 +123,7 @@ internal class ModuleHostImpl(
     }
 
     override fun setPref(key: String, value: Any) {
-        require(ModulePermission.PREFERENCES_WRITE in module.permissions) {
+        require(ModulePermission.PREFERENCES_WRITE in granted) {
             "Module ${module.id} did not declare ${ModulePermission.PREFERENCES_WRITE}"
         }
         val editor = browserPreferences.edit()
@@ -142,7 +143,7 @@ internal class ModuleHostImpl(
     }
 
     override fun setThemeColor(scope: ModuleThemeScope, slot: ModuleColorSlot, argb: Int) {
-        require(ModulePermission.THEME in module.permissions) {
+        require(ModulePermission.THEME in granted) {
             "Module ${module.id} did not declare ${ModulePermission.THEME}"
         }
         synchronized(lock) {
@@ -174,8 +175,8 @@ internal class ModuleHostImpl(
 
     private fun requireReadAccess() {
         require(
-            ModulePermission.PREFERENCES_READ in module.permissions ||
-                ModulePermission.PREFERENCES_WRITE in module.permissions,
+            ModulePermission.PREFERENCES_READ in granted ||
+                ModulePermission.PREFERENCES_WRITE in granted,
         ) {
             "Module ${module.id} did not declare any preference permission"
         }

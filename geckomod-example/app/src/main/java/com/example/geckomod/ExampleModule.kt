@@ -1,0 +1,104 @@
+package com.example.geckomod
+
+import org.mozilla.fenix.modules.api.BrowserModule
+import org.mozilla.fenix.modules.api.ModuleColorSlot
+import org.mozilla.fenix.modules.api.ModuleHost
+import org.mozilla.fenix.modules.api.ModuleMenuItem
+import org.mozilla.fenix.modules.api.ModulePermission
+import org.mozilla.fenix.modules.api.ModuleSetting
+import org.mozilla.fenix.modules.api.ModuleThemeScope
+import org.mozilla.fenix.modules.api.ModuleToolbarAction
+
+/**
+ * Example GeckoMod: shows how a module attaches to the browser itself.
+ *
+ * Name, description, version, author, update URL and permissions come from the archive manifest, so the values below
+ * are only the fallback used when a GeckoMod ships without that metadata. The switch in the module manager comes from
+ * [ModuleSetting], the menu entry and toolbar button from [ModuleMenuItem] and [ModuleToolbarAction], and the colours
+ * from [ModuleThemeScope].
+ */
+class ExampleModule : BrowserModule {
+
+    override val id = "com.example.geckomod"
+
+    override val name = "Example GeckoMod"
+
+    override val version = 1
+
+    override val description = "Adds a menu entry, a toolbar button, a setting and a colour theme."
+
+    override val permissions = setOf(
+        ModulePermission.MENU_ITEMS,
+        ModulePermission.PREFERENCES_READ,
+        ModulePermission.TOOLBAR,
+        ModulePermission.SETTINGS,
+        ModulePermission.THEME,
+    )
+
+    private var buttonVisible = true
+
+    override fun onEnable(host: ModuleHost) {
+        buttonVisible = host.getBooleanPref(PREF_BUTTON_VISIBLE, true)
+        val taps = host.getStringPref(PREF_TAPS, "0")
+
+        host.addMenuItem(
+            ModuleMenuItem(
+                id = "example-menu",
+                label = "Example GeckoMod",
+                onClick = { host.log("menu entry tapped $taps time(s)") },
+            ),
+        )
+
+        publishToolbarAction(host)
+        publishSetting(host)
+
+        host.setThemeColor(ModuleThemeScope.ALL, ModuleColorSlot.PRIMARY, GREEN)
+        host.setThemeColor(ModuleThemeScope.ALL, ModuleColorSlot.PRIMARY_CONTAINER, DARK_GREEN)
+        host.setThemeColor(ModuleThemeScope.ALL, ModuleColorSlot.ON_PRIMARY_CONTAINER, WHITE)
+        host.setThemeColor(ModuleThemeScope.PRIVATE, ModuleColorSlot.PRIMARY, RED)
+    }
+
+    override fun onDisable(host: ModuleHost) {
+        host.removeMenuItems()
+        host.removeToolbarActions()
+        host.removeSettings()
+        host.clearThemeColors()
+    }
+
+    private fun publishToolbarAction(host: ModuleHost) {
+        host.addToolbarAction(
+            ModuleToolbarAction(
+                id = "example-toolbar",
+                label = "Example",
+                visible = buttonVisible,
+                onClick = { host.log("toolbar button tapped") },
+            ),
+        )
+    }
+
+    private fun publishSetting(host: ModuleHost) {
+        host.addSetting(
+            ModuleSetting.Switch(
+                key = "show-toolbar-button",
+                title = "Show toolbar button",
+                summary = "Adds a button to the browser toolbar while this GeckoMod is enabled",
+                checked = buttonVisible,
+            ) { checked ->
+                buttonVisible = checked
+                publishToolbarAction(host)
+                publishSetting(host)
+            },
+        )
+    }
+
+    // Hex literals above Int.MAX_VALUE are Longs, so they can not be const val.
+    private val GREEN = 0xFF00AA00.toInt()
+    private val DARK_GREEN = 0xFF003300.toInt()
+    private val RED = 0xFFFF5555.toInt()
+    private val WHITE = 0xFFFFFFFF.toInt()
+
+    private companion object {
+        const val PREF_BUTTON_VISIBLE = "geckomod_example_button_visible"
+        const val PREF_TAPS = "geckomod_example_taps"
+    }
+}

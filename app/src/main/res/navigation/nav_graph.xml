@@ -860,7 +860,7 @@
     <fragment
         android:id="@+id/modulesFragment"
         android:name="org.mozilla.fenix.modules.ui.ModulesFragment"
-        android:label="@string/modules_settings_title" />
+        android:label="@string/modules_screen_title" />
 
     <fragment
         android:id="@+id/tabsSettingsFragment"

@@ -20,6 +20,12 @@
         android:title="@string/modules_advanced_title">
 
         <SwitchPreferenceCompat
+            android:key="@string/pref_key_modules_safe_mode"
+            android:defaultValue="false"
+            android:title="@string/modules_safe_mode_title"
+            android:summary="@string/modules_safe_mode_summary" />
+
+        <SwitchPreferenceCompat
             android:key="@string/pref_key_modules_allow_untrusted"
             android:defaultValue="false"
             android:title="@string/modules_allow_untrusted_title"

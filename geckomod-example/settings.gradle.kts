@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "iceraven-module-example"
+rootProject.name = "geckomod-example"
 include(":app")
