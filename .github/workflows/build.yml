@@ -63,11 +63,15 @@ jobs:
           GRADLE_OPTS: -Dorg.gradle.jvmargs="-XX:MaxMetaspaceSize=4g -Xms1g -Xmx7g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dev/stderr"
         run: ./gradlew app:assembleForkDebug --stacktrace --no-daemon
 
+      # AGP 9 nests variant APKs as outputs/apk/<flavor>/<buildType>/, so glob instead of hardcoding a directory.
+      - name: Locate APKs
+        run: find app/build/outputs/apk -name '*.apk' -type f
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: iceraven-forkdebug-apk
-          path: app/build/outputs/apk/forkDebug/*.apk
+          path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
   # Proves that the module API is actually usable by an outside author: the example project is a standalone Gradle
