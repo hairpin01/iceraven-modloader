@@ -106,7 +106,8 @@ internal object ModulePluginLoader {
         val resources = createResources(context, archive.absolutePath)
         val info = readInfo(context, packageInfo, module)
 
-        val declaresHooks = metaString(applicationInfo.metaData, META_XPOSED_MODULE)?.toBoolean() == true
+        val declaresHooks =
+            metaString(applicationInfo.metaData, ModuleXposedBridge.META_XPOSED_MODULE)?.toBoolean() == true
 
         Log.i(TAG, "Loaded GeckoMod ${info.id} v${info.version} from ${archive.name}")
         LoadedModule(installId, module, resources, packageInfo.packageName, info, permissions, declaresHooks)
