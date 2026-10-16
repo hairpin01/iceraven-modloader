@@ -15,6 +15,18 @@
             android:name="org.mozilla.fenix.modules.entrypoint"
             android:value="com.example.geckomod.ExampleModule" />
 
+        <!--
+            Declares that the entry point also speaks the Xposed protocol. GeckoLoader calls initZygote and
+            handleLoadPackage on it by reflection, but only when the browser itself runs under LSPosed/Zygisk.
+        -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Example GeckoMod with Xposed hooks" />
+
         <meta-data
             android:name="org.mozilla.fenix.modules.name"
             android:value="Example GeckoMod" />

@@ -17,8 +17,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import mozilla.components.compose.browser.toolbar.concept.Action
+import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction
+import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.BrowserActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction
-import mozilla.components.compose.browser.toolbar.store.BrowserToolbarEvent
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent.Source
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.Store
@@ -32,7 +35,7 @@ import org.mozilla.fenix.modules.api.ModuleToolbarAction
  */
 data class ModuleToolbarActionClicked(
     val actionId: String,
-    override val source: BrowserToolbarEvent.Source,
+    override val source: Source,
 ) : BrowserToolbarEvent
 
 /**
@@ -65,11 +68,11 @@ internal object ModuleToolbarBridge {
         when (action) {
             // Only the trailing slot is used: the browser leaves it empty on narrow screens, so it is the one place
             // where a button is guaranteed to be rendered on every device.
-            is BrowserToolbarAction.BrowserDisplayToolbarAction.BrowserActionsEndUpdated -> {
+            is BrowserActionsEndUpdated -> {
                 lastBrowserActionsEnd = action.actions
                 next(
-                    BrowserToolbarAction.BrowserDisplayToolbarAction.BrowserActionsEndUpdated(
-                        action.actions + actions(context, BrowserToolbarEvent.Source.AddressBar.BrowserEnd),
+                    BrowserActionsEndUpdated(
+                        action.actions + actions(context, Source.AddressBar.BrowserEnd),
                     ),
                 )
             }
@@ -114,7 +117,7 @@ internal object ModuleToolbarBridge {
         Handler(Looper.getMainLooper()).post {
             runCatching {
                 store.dispatch(
-                    BrowserToolbarAction.BrowserDisplayToolbarAction.BrowserActionsEndUpdated(lastBrowserActionsEnd),
+                    BrowserActionsEndUpdated(lastBrowserActionsEnd),
                 )
             }.onFailure { Log.w(TAG, "Could not refresh the toolbar with module buttons", it) }
         }
@@ -135,7 +138,7 @@ internal object ModuleToolbarBridge {
     private fun toToolbarAction(
         action: ModuleToolbarAction,
         resources: Resources?,
-        source: BrowserToolbarEvent.Source,
+        source: Source,
     ): Action = Action.ActionButton(
         drawable = action.icon?.let { icon -> BitmapDrawable(requireNotNull(resources), icon) },
         contentDescription = action.label,

@@ -1,5 +1,7 @@
 package com.example.geckomod
 
+import de.robv.android.xposed.IXposedHookLoadPackage
+
 import android.app.AlertDialog
 import android.os.Handler
 import android.os.Looper
@@ -21,7 +23,7 @@ import org.mozilla.fenix.modules.api.ModuleToolbarAction
  * [ModuleSetting], the menu entry and toolbar button from [ModuleMenuItem] and [ModuleToolbarAction], and the colours
  * from [ModuleThemeScope].
  */
-class ExampleModule : BrowserModule {
+class ExampleModule : BrowserModule, IXposedHookLoadPackage {
 
     override val id = "com.example.geckomod"
 
@@ -41,7 +43,10 @@ class ExampleModule : BrowserModule {
 
     private var buttonVisible = true
 
+    private var host: ModuleHost? = null
+
     override fun onEnable(host: ModuleHost) {
+        this.host = host
         buttonVisible = host.getBooleanPref(PREF_BUTTON_VISIBLE, true)
 
         host.addMenuItem(
@@ -117,6 +122,16 @@ class ExampleModule : BrowserModule {
     private val DARK_GREEN = 0xFF003300.toInt()
     private val RED = 0xFFFF5555.toInt()
     private val WHITE = 0xFFFFFFFF.toInt()
+
+    /**
+     * Called by GeckoLoader through [ModuleXposedBridge] when the browser runs under LSPosed or another Xposed
+     * implementation. Without it the same code would be reached with [XposedHelpers] and friends; here the point is to
+     * show the entry point being handed to the framework.
+     */
+    override fun handleLoadPackage(param: IXposedHookLoadPackage.LoadPackageParam) {
+        host?.log("Xposed hook for ${param.packageName} in process ${param.processName}")
+        showAlert(host ?: return, "Xposed hooks are live")
+    }
 
     private companion object {
         const val PREF_BUTTON_VISIBLE = "geckomod_example_button_visible"

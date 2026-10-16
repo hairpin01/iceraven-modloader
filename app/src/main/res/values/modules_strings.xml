@@ -49,6 +49,8 @@
     <string name="modules_info_permissions_format">Permissions: %1$s</string>
     <string name="modules_info_none">None</string>
     <string name="modules_info_disabled">This GeckoMod is disabled.</string>
+    <string name="modules_info_xposed_active">Xposed hooks active</string>
+    <string name="modules_info_xposed_inactive">Xposed hooks inactive, run under LSPosed to enable them</string>
 
     <string name="modules_manage_title">Manage</string>
     <string name="modules_uninstall">Uninstall</string>

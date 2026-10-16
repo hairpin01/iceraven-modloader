@@ -27,6 +27,7 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.modules.ModuleManager
 import org.mozilla.fenix.modules.ModuleManager.ModuleRecord
 import org.mozilla.fenix.modules.ModulePreferences
+import org.mozilla.fenix.modules.ModuleXposedBridge
 import org.mozilla.fenix.modules.api.ModuleSetting
 
 /**
@@ -262,6 +263,15 @@ class ModulesFragment : PreferenceFragmentCompat() {
                     ?.joinToString { permission -> permission.name }
                     ?: getString(R.string.modules_info_none)
                 appendLine(getString(R.string.modules_info_permissions_format, permissions))
+            }
+            if (info != null) {
+                appendLine(
+                    if (record.hooksActive || ModuleXposedBridge.isAvailable(context)) {
+                        getString(R.string.modules_info_xposed_active)
+                    } else {
+                        getString(R.string.modules_info_xposed_inactive)
+                    },
+                )
             }
             if (record.enabled.not() && module != null) appendLine(getString(R.string.modules_info_disabled))
             record.error?.let { appendLine(it) }

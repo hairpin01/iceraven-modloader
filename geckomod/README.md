@@ -70,7 +70,7 @@ the user saw before installing.
 | Type | Purpose |
 |---|---|
 | `BrowserModule` | Entry point: `id`, `name`, `version`, `description`, `permissions`, `onEnable`, `onDisable` |
-| `ModuleHost` | `resources`, menu, toolbar, settings, preferences, theme, `log` |
+| `ModuleHost` | `context`, `resources`, menu, toolbar, settings, preferences, theme, `log` |
 | `ModuleMenuItem` | Browser menu entry: `id`, `label`, `icon`, `enabled`, `badgeText`, `onClick` |
 | `ModuleToolbarAction` | Toolbar button: `id`, `label`, `icon`, `visible`, `enabled`, `onClick` |
 | `ModuleSetting` | Settings row: `Switch`, `Text` or `Action` |
@@ -85,6 +85,33 @@ the user saw before installing.
 - `onEnable` runs on a loader thread. Keep it fast, do not block, and never throw: exceptions are caught and shown in the
   module manager.
 - `onClick` runs on the main thread, and main thread disk reads are fatal under StrictMode. Do not do IO there.
+- `host.context` is the browser's **application context**: activities, dialogs, services, files, network, the whole
+  platform. Never cache an Activity from it, read it fresh whenever you need one.
+- Permissions are **consent, not a sandbox**. They are what the user is told before installing, and GeckoLoader refuses
+  a module that asks for more than its manifest declared. Inside those boundaries the module has the same power as the
+  browser itself, so treat anything you write accordingly.
+
+## Xposed hooks
+
+A GeckoMod can also hook the browser through the Xposed protocol. Declare it in the manifest:
+
+```xml
+<meta-data android:name="xposedmodule" android:value="true" />
+<meta-data android:name="xposeddescription" android:value="What your module does" />
+```
+
+and implement `de.robv.android.xposed.IXposedHookLoadPackage` (optionally `IXposedHookZygoteInit`) on the entry point
+class, alongside `BrowserModule`. GeckoLoader then:
+
+1. checks whether `de.robv.android.xposed.XposedBridge` exists, which it only does when the browser itself runs under
+   LSPosed/Zygisk;
+2. calls `initZygote` and `handleLoadPackage` **reflectively**, filling `packageName`, `processName`, `classLoader`,
+   `appInfo`, `firstApplication` and `isSystemServer` for you.
+
+Both the official `de.robv.android.xposed:api` jar and hand-written stubs work, because the call sites are resolved by
+name. Without LSPosed the hooks stay inactive and the module manager says so; nothing crashes and nothing is silently
+ignored. `geckomod-example` ships the stub interfaces in
+`app/src/main/java/de/robv/android/xposed/XposedApi.kt` as a working example.
 
 ## Safe mode
 
@@ -144,6 +171,7 @@ are reported on the module row instead of failing silently.
 | `app/src/main/java/org/mozilla/fenix/modules/ModuleHostImpl.kt` | Browser side of the API, permission enforcement |
 | `app/src/main/java/org/mozilla/fenix/modules/ModuleToolbarBridge.kt` | Toolbar actions and their middleware |
 | `app/src/main/java/org/mozilla/fenix/modules/ModuleThemeOverrides.kt` | Colour overrides applied in `FirefoxTheme` |
+| `app/src/main/java/org/mozilla/fenix/modules/ModuleXposedBridge.kt` | Optional Xposed hooks, called reflectively |
 | `app/src/main/java/org/mozilla/fenix/modules/ModulePreferences.kt` | Module manager preferences |
 | `app/src/main/java/org/mozilla/fenix/modules/ui/ModulesFragment.kt` | Settings screen |
 | `app/src/main/res/xml/modules_preferences.xml` | Screen layout |
@@ -151,14 +179,13 @@ are reported on the module row instead of failing silently.
 
 ## Upstream merges
 
-Eight upstream files are touched, each in one place only:
+Seven upstream files are touched, each in one place only:
 
 | File | Change |
 |---|---|
 | `FenixApplication.kt` | one `ModuleManager.ensureStarted(this)` call |
 | `components/menu/WebExtensionsMenuBinding.kt` | appends module items to the menu dispatch |
-| `components/toolbar/BrowserToolbarMiddleware.kt` | appends module buttons to the toolbar slots |
-| `browser/BrowserToolbarStoreBuilder.kt` | adds the module toolbar middleware |
+| `browser/BrowserToolbarStoreBuilder.kt` | attaches the module toolbar middleware and its store |
 | `settings/SettingsFragment.kt` | one `when` branch for the new preference key |
 | `theme/FirefoxTheme.kt` | two palette arguments wrapped in `ModuleThemeOverrides.applyTo` |
 | `res/xml/preferences.xml` | one preference entry |

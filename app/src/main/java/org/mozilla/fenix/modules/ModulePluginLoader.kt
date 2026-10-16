@@ -60,6 +60,8 @@ internal object ModulePluginLoader {
         val packageName: String,
         val info: ModuleInfo,
         val grantedPermissions: Set<ModulePermission>,
+        /** Whether the archive declares `xposedmodule`, see [ModuleXposedBridge]. */
+        val declaresHooks: Boolean,
     )
 
     /**
@@ -104,8 +106,10 @@ internal object ModulePluginLoader {
         val resources = createResources(context, archive.absolutePath)
         val info = readInfo(context, packageInfo, module)
 
+        val declaresHooks = metaString(applicationInfo.metaData, META_XPOSED_MODULE)?.toBoolean() == true
+
         Log.i(TAG, "Loaded GeckoMod ${info.id} v${info.version} from ${archive.name}")
-        LoadedModule(installId, module, resources, packageInfo.packageName, info, permissions)
+        LoadedModule(installId, module, resources, packageInfo.packageName, info, permissions, declaresHooks)
     }
 
     /**
@@ -177,7 +181,7 @@ internal object ModulePluginLoader {
      * through the deprecated accessor keeps both forms working, which matters because the values come from user land.
      */
     @Suppress("DEPRECATION")
-    private fun metaString(metaData: Bundle?, key: String): String? =
+    internal fun metaString(metaData: Bundle?, key: String): String? =
         metaData?.get(key)?.toString()?.takeIf { it.isNotBlank() }
 
     /** Long version code as a plain number, so it can be compared against the declared version. */

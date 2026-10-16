@@ -63,6 +63,8 @@ object ModuleManager {
         val fileName: String,
         /** Name, version, author and update URL read from the archive manifest. */
         val info: ModuleInfo? = null,
+        /** Whether the module's Xposed hooks are installed and running. */
+        val hooksActive: Boolean = false,
         /** Human readable reason why the archive was rejected. */
         val error: String? = null,
     )
@@ -394,6 +396,9 @@ object ModuleManager {
             )
         }
 
+        val hooksActive = loaded.declaresHooks &&
+            ModuleXposedBridge.attach(context, archive, loaded.module)
+
         val host = ModuleHostImpl(
             context = context.applicationContext,
             module = loaded.module,
@@ -427,6 +432,7 @@ object ModuleManager {
             enabled = true,
             fileName = archive.name,
             info = loaded.info,
+            hooksActive = hooksActive,
         )
     }
 
