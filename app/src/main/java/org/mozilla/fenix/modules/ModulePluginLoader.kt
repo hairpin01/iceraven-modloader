@@ -5,6 +5,7 @@
 package org.mozilla.fenix.modules
 
 import android.content.Context
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.content.res.AssetManager
@@ -134,19 +135,13 @@ internal object ModulePluginLoader {
         }
     }
 
+    /** Signing certificates of the browser itself, which seed the trusted signer set. */
     private fun browserFingerprints(context: Context): Set<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val signingInfo = context.packageManager.getPackageSigningInfo(context.packageName)
-            if (signingInfo.hasMultipleSigners()) {
-                signingInfo.apkContentsSigners
-            } else {
-                signingInfo.signingCertificateHistory
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackage(context.packageName)?.signatures
-        }
-        return fingerprintsOf(signatures)
+        val info = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_SIGNING_CERTIFICATES,
+        )
+        return fingerprintsOf(signaturesOf(info))
     }
 
     private fun signerFingerprints(context: Context, archive: File): Set<String> {
@@ -155,8 +150,16 @@ internal object ModulePluginLoader {
             PackageManager.GET_SIGNING_CERTIFICATES,
         ) ?: return emptySet()
 
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val signingInfo = info.signingInfo ?: return emptySet()
+        return fingerprintsOf(signaturesOf(info))
+    }
+
+    /**
+     * Reading [PackageInfo.signingInfo] on Android 9+ and falling back to the deprecated [PackageInfo.signatures] on
+     * older releases, where a single signer is all the platform reports.
+     */
+    private fun signaturesOf(info: PackageInfo): Array<Signature>? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = info.signingInfo ?: return null
             if (signingInfo.hasMultipleSigners()) {
                 signingInfo.apkContentsSigners
             } else {
@@ -166,8 +169,6 @@ internal object ModulePluginLoader {
             @Suppress("DEPRECATION")
             info.signatures
         }
-        return fingerprintsOf(signatures)
-    }
 
     private fun fingerprintsOf(signatures: Array<Signature>?): Set<String> =
         signatures.orEmpty().map { signature ->

@@ -1,16 +1,16 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id("com.android.application") version "9.4.0"
+    id("org.jetbrains.kotlin.android") version "2.4.20"
 }
 
 android {
     namespace = "com.example.iceravenmodule"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.iceravenmodule"
-        minSdk = 21
-        targetSdk = 35
+        minSdk = 26
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
@@ -19,7 +19,7 @@ android {
         getByName("main") {
             // The SPI sources are compiled straight into the module archive. At runtime the browser class loader is the
             // parent of the module class loader, so the browser's own copy of these interfaces is the one that is used.
-            kotlin.srcDir("../../iceraven-browser/app/src/main/java/org/mozilla/fenix/modules/api")
+            kotlin.srcDir("../../app/src/main/java/org/mozilla/fenix/modules/api")
         }
     }
 
@@ -28,26 +28,29 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
-    signingConfigs {
-        // Sign with the same key as the browser build to avoid having to enable developer mode.
-        // Fill in your own keystore, or drop the signingConfig line and use developer mode instead.
-        create("module") {
-            storeFile = file(System.getenv("MODULE_KEYSTORE") ?: "module.jks")
-            storePassword = System.getenv("MODULE_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("MODULE_KEY_ALIAS")
-            keyPassword = System.getenv("MODULE_KEY_PASSWORD")
+    // Release archives are signed with your own key, the same one the browser build uses. Without it, enable developer
+    // mode in Settings > Modules instead. The keystore is only configured when the environment provides one, so that
+    // `./gradlew :app:assembleDebug` works out of the box.
+    System.getenv("MODULE_KEYSTORE")?.let { keystore ->
+        signingConfigs {
+            create("module") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("MODULE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MODULE_KEY_ALIAS")
+                keyPassword = System.getenv("MODULE_KEY_PASSWORD")
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("module")
+            }
         }
     }
+}
 
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("module")
-        }
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

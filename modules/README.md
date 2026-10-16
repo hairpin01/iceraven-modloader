@@ -77,7 +77,11 @@ would need either more Acorn copies or an overlay, so they are deliberately out 
 ```bash
 cd modules-example
 
-# Either sign with the same key as the browser build...
+# A debug archive, no key needed. Enable developer mode in the browser to install it.
+./gradlew :app:assembleDebug
+# -> app/build/outputs/apk/debug/app-debug.apk
+
+# Or a release archive signed with the same key as the browser build, which installs without developer mode.
 export MODULE_KEYSTORE=/path/to/module.jks
 export MODULE_KEYSTORE_PASSWORD=...
 export MODULE_KEY_ALIAS=...
@@ -87,12 +91,14 @@ export MODULE_KEY_PASSWORD=...
 # -> app/build/outputs/apk/release/app-release.apk
 ```
 
+The signing config only exists when `MODULE_KEYSTORE` is set, so debug builds never need a key.
+
 Then in the browser: **Settings → Modules → Install module from file**.
 
 The example compiles the SPI sources directly into the archive (see `sourceSets` in `app/build.gradle.kts`):
 
 ```kotlin
-kotlin.srcDir("../../iceraven-browser/app/src/main/java/org/mozilla/fenix/modules/api")
+kotlin.srcDir("../../app/src/main/java/org/mozilla/fenix/modules/api")
 ```
 
 Any project layout works as long as the manifest declares the entry point:

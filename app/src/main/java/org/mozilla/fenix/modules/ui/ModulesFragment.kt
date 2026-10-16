@@ -99,7 +99,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
 
         category.removeAll()
         if (records.isEmpty()) {
-            category.add(
+            category.addPreference(
                 Preference(requireContext()).apply {
                     isPersistent = false
                     isSelectable = false
@@ -115,7 +115,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
     private fun addRecord(category: PreferenceCategory, record: ModuleRecord) {
         val context = requireContext()
 
-        category.add(
+        category.addPreference(
             SwitchPreferenceCompat(context).apply {
                 key = getString(R.string.pref_key_modules_switch) + record.installId
                 isPersistent = false
@@ -131,7 +131,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
             },
         )
 
-        category.add(
+        category.addPreference(
             Preference(context).apply {
                 key = getString(R.string.pref_key_modules_info) + record.installId
                 isPersistent = false
@@ -161,7 +161,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
             val context = requireContext()
             val key = getString(R.string.pref_key_modules_setting) + record.installId + setting.key
 
-            category.add(
+            category.addPreference(
                 when (setting) {
                     is ModuleSetting.Switch -> SwitchPreferenceCompat(context).apply {
                         this.key = key
