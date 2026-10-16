@@ -13,7 +13,6 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.lib.state.Middleware
-import mozilla.components.lib.state.Store
 
 /**
  * Toolbar event raised when a button contributed by a runtime module is tapped.
@@ -26,23 +25,23 @@ data class ModuleToolbarActionClicked(
     override val source: BrowserToolbarEvent.Source,
 ) : BrowserToolbarEvent
 
-/** Routes toolbar taps back into the module that contributed the button. */
-class ModuleToolbarActionMiddleware : Middleware<BrowserToolbarState, BrowserToolbarAction> {
-    override suspend fun process(
-        action: BrowserToolbarAction,
-        store: Store<BrowserToolbarState, BrowserToolbarAction>,
-    ) {
-        if (action is ModuleToolbarActionClicked) {
-            ModuleManager.invokeToolbarAction(action.actionId)
-        }
-    }
-}
-
 /**
  * Builds the toolbar buttons modules registered, so `BrowserToolbarMiddleware` only has to append them to the
  * start or end action list.
  */
 internal object ModuleToolbarBridge {
+
+    /**
+     * Routes toolbar taps back into the module that contributed the button.
+     *
+     * Written as a [Middleware] lambda because `Middleware` is a type alias for a function type, not an interface.
+     */
+    val actionMiddleware: Middleware<BrowserToolbarState, BrowserToolbarAction> = { _, next, action ->
+        if (action is ModuleToolbarActionClicked) {
+            ModuleManager.invokeToolbarAction(action.actionId)
+        }
+        next(action)
+    }
 
     fun actions(context: Context, source: BrowserToolbarEvent.Source): List<Action> =
         ModuleManager.toolbarActions.value

@@ -184,7 +184,7 @@ class ModulesFragment : PreferenceFragmentCompat() {
                         summary = setting.summary
                         setText(setting.value)
                         setOnPreferenceChangeListener { _, newValue ->
-                            setting.onValueChange(newValue as String?)
+                            setting.onValueChange(newValue as? String ?: "")
                             true
                         }
                     }

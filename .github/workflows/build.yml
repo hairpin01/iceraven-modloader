@@ -48,6 +48,11 @@ jobs:
           fi
           ./automation/iceraven/patch_android_components.sh
 
+      # The glean Gradle tasks shell out to this virtualenv, app/build.gradle points GLEAN_PARSER_VENV at venv/bin/python,
+      # so no metrics source can be generated without it.
+      - name: Setup glean python environment
+        run: ./automation/iceraven/setup_venv.sh
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
