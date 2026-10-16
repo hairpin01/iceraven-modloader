@@ -95,6 +95,7 @@ internal object ModulePluginLoader {
      * out of an archive that is not installed as a package; on Android 9+ both calls are on the grey list, which logs
      * warning instead of failing.
      */
+    @Suppress("DEPRECATION")
     private fun createResources(context: Context, archivePath: String): Resources {
         val assetManagerClass = AssetManager::class.java
         val assetManager = assetManagerClass.getConstructor().newInstance()
