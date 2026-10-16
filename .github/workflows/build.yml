@@ -64,14 +64,16 @@ jobs:
         run: ./gradlew app:assembleForkDebug --stacktrace --no-daemon
 
       # AGP 9 nests variant APKs as outputs/apk/<flavor>/<buildType>/, so glob instead of hardcoding a directory.
+      # The repo's conventions plugin transplants every project build directory to
+      # gradle/build/<relative project path>, so :app does not build into app/build.
       - name: Locate APKs
-        run: find app/build/outputs/apk -name '*.apk' -type f
+        run: find gradle/build/app/outputs -name '*.apk' -type f
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: iceraven-forkdebug-apk
-          path: app/build/outputs/apk/**/*.apk
+          path: gradle/build/app/outputs/apk/**/*.apk
           if-no-files-found: error
 
   # Proves that the module API is actually usable by an outside author: the example project is a standalone Gradle
