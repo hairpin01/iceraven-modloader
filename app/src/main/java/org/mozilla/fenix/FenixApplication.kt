@@ -101,6 +101,7 @@ import org.mozilla.fenix.GleanMetrics.Logins
 import org.mozilla.fenix.GleanMetrics.Metrics
 import org.mozilla.fenix.GleanMetrics.PerfStartup
 import org.mozilla.fenix.GleanMetrics.Preferences
+import org.mozilla.fenix.modules.ModuleManager
 import org.mozilla.fenix.GleanMetrics.SearchDefaultEngine
 import org.mozilla.fenix.GleanMetrics.SearchDefaultEngineForPrivate
 import org.mozilla.fenix.GleanMetrics.TabStrip
@@ -195,6 +196,7 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
     override fun onCreate() {
         super.onCreate()
         initializeFenixProcess()
+        ModuleManager.ensureStarted(this)
     }
 
     override fun attachBaseContext(base: Context) {

@@ -27,6 +27,7 @@ import mozilla.components.compose.base.theme.oledAcornGradientScheme
 import mozilla.components.compose.base.theme.oledColorPalette
 import mozilla.components.compose.base.theme.privateAcornGradientScheme
 import mozilla.components.compose.base.theme.privateColorPalette
+import org.mozilla.fenix.modules.ModuleThemeOverrides
 
 /**
  * The theme for Mozilla Firefox for Android (Fenix).
@@ -73,8 +74,8 @@ fun FirefoxTheme(
 
     ProvideFirefoxTokens(tabGroupColors = tabGroupColors) {
         AcornTheme(
-            colors = colors,
-            colorScheme = colorScheme,
+            colors = ModuleThemeOverrides.applyTo(colors, theme),
+            colorScheme = ModuleThemeOverrides.applyTo(colorScheme, theme),
             gradients = gradients,
             content = content,
         )

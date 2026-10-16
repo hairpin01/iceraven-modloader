@@ -397,6 +397,10 @@ class SettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedFragment 
                     SettingsFragmentDirections.actionSettingsFragmentToCustomizationFragment()
                 }
 
+                resources.getString(R.string.pref_key_modules) -> {
+                    SettingsFragmentDirections.actionSettingsFragmentToModulesFragment()
+                }
+
                 resources.getString(R.string.pref_key_passwords) -> {
                     SettingsMetrics.passwords.record()
                     SettingsFragmentDirections.actionSettingsFragmentToSavedLoginsAuthFragment()

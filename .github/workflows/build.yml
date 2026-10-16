@@ -1,0 +1,64 @@
+name: Build Iceraven
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - runtime-modules
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble forkDebug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-37.1" "build-tools;36.0.0"
+
+      - name: Point Gradle at the SDK
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # forkDebug is the Iceraven build type: debug signed, applicationId suffix ".iceraven.debug",
+      # so the result can be side installed next to the released app.
+      - name: Build
+        run: |
+          ./gradlew app:assembleForkDebug \
+            --stacktrace \
+            --max-workers=3 \
+            -Pkotlin.daemon.jvmargs="-Xmx3g"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: iceraven-forkdebug-apk
+          path: app/build/outputs/apk/forkDebug/*.apk
+          if-no-files-found: error

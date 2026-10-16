@@ -58,6 +58,12 @@
             android:title="@string/preferences_customize" />
 
         <androidx.preference.Preference
+            android:key="@string/pref_key_modules"
+            app:iconSpaceReserved="false"
+            android:title="@string/modules_settings_title"
+            android:summary="@string/modules_settings_summary" />
+
+        <androidx.preference.Preference
             android:key="@string/pref_key_passwords"
             app:iconSpaceReserved="false"
             android:title="@string/preferences_passwords_logins_and_passwords_2" />

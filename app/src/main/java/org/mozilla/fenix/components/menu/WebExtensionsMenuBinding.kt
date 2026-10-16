@@ -24,6 +24,7 @@ import org.mozilla.fenix.components.menu.store.MenuAction
 import org.mozilla.fenix.components.menu.store.MenuState
 import org.mozilla.fenix.components.menu.store.MenuStore
 import org.mozilla.fenix.components.menu.store.WebExtensionMenuItem
+import org.mozilla.fenix.modules.ModuleManager
 
 /**
  * Helper for observing Extension state from both [BrowserState.extensions] and [TabSessionState.extensionState].
@@ -98,9 +99,31 @@ class WebExtensionsMenuBinding(
                     )
                 }
 
-                menuStore.dispatch(MenuAction.UpdateWebExtensionBrowserMenuItems(webExtensionMenuItems))
+                menuStore.dispatch(
+                    MenuAction.UpdateWebExtensionBrowserMenuItems(
+                        webExtensionMenuItems + moduleMenuItems(),
+                    ),
+                )
             }
     }
+
+    /**
+     * Menu entries contributed by runtime modules, mapped onto the shape the menu already renders for WebExtensions so
+     * native modules and add-ons show up through exactly the same code path.
+     */
+    private fun moduleMenuItems(): List<WebExtensionMenuItem> =
+        ModuleManager.menuItems.value.map { item ->
+            WebExtensionMenuItem(
+                id = "module:${item.id}",
+                label = item.label,
+                enabled = item.enabled,
+                icon = item.icon,
+                badgeText = item.badgeText,
+                badgeTextColor = null,
+                badgeBackgroundColor = null,
+                onClick = item.onClick,
+            )
+        }
 
     @Suppress("ReturnCount")
     private suspend fun getWebExtensionMenuItem(

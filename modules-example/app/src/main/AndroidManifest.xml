@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="Example Module"
+        android:supportsRtl="true">
+
+        <!--
+            Entry point read by the browser module loader. Must be a public class with a no-argument constructor that
+            implements BrowserModule.
+        -->
+        <meta-data
+            android:name="org.mozilla.fenix.modules.entrypoint"
+            android:value="com.example.iceravenmodule.ExampleModule" />
+    </application>
+</manifest>

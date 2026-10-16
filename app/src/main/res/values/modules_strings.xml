@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!--
+    Kept in a separate file on purpose: the module system is Iceraven specific, keeping it out of strings.xml keeps
+    upstream merges free of conflicts.
+-->
+<resources>
+    <string name="modules_settings_title">Modules</string>
+    <string name="modules_settings_summary">Install modules that customise the browser itself</string>
+
+    <string name="pref_key_modules" translatable="false">pref_key_modules</string>
+    <string name="pref_key_modules_install" translatable="false">pref_key_modules_install</string>
+    <string name="pref_key_modules_installed_category" translatable="false">pref_key_modules_installed</string>
+    <string name="pref_key_modules_advanced_category" translatable="false">pref_key_modules_advanced</string>
+    <string name="pref_key_modules_allow_untrusted" translatable="false">pref_key_modules_allow_untrusted</string>
+    <string name="pref_key_modules_switch" translatable="false">pref_key_module_switch_</string>
+    <string name="pref_key_modules_info" translatable="false">pref_key_module_info_</string>
+    <string name="pref_key_modules_docs" translatable="false">pref_key_modules_docs</string>
+
+    <string name="modules_install_title">Install module from file</string>
+    <string name="modules_install_summary">Pick an .apk or .jar module archive</string>
+
+    <string name="modules_installed_title">Installed modules</string>
+    <string name="modules_none_title">No modules installed yet</string>
+
+    <string name="modules_advanced_title">Advanced</string>
+    <string name="modules_allow_untrusted_title">Developer mode</string>
+    <string name="modules_allow_untrusted_summary">Allow modules that are not signed by a trusted certificate. A module runs with the full privileges of the browser, only enable this for modules you built yourself.</string>
+
+    <string name="modules_docs_title">How to build a module</string>
+    <string name="modules_docs_summary">Module API, example project and build instructions</string>
+
+    <string name="modules_info_title">Module details</string>
+    <string name="modules_info_format">%1$s\nVersion %2$d\nId %3$s</string>
+    <string name="modules_info_package_format">Package %1$s</string>
+    <string name="modules_info_permissions_format">Permissions: %1$s</string>
+    <string name="modules_info_none">None</string>
+    <string name="modules_info_disabled">This module is disabled.</string>
+
+    <string name="modules_manage_title">Manage</string>
+    <string name="modules_uninstall">Uninstall</string>
+    <string name="modules_uninstall_title">Uninstall module?</string>
+    <string name="modules_uninstall_message">%1$s and all its settings will be removed.</string>
+
+    <string name="modules_install_success">Module installed, see the list below</string>
+    <string name="modules_install_failed">Could not install module: %1$s</string>
+</resources>
