@@ -148,7 +148,6 @@ import org.mozilla.fenix.ext.canGoBackInHistoryOrToStories
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.navigateSafe
 import org.mozilla.fenix.ext.components
-import org.mozilla.fenix.modules.ModuleToolbarBridge
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.settings.ShortcutType
 import org.mozilla.fenix.summarization.SummarizationNavigator
@@ -805,7 +804,7 @@ class BrowserToolbarMiddleware(
             }
             .map { config ->
                 buildAction(config.action, Source.AddressBar.BrowserStart)
-            } + ModuleToolbarBridge.actions(uiContext, Source.AddressBar.BrowserStart)
+            }
     }
 
     /**
@@ -872,7 +871,7 @@ class BrowserToolbarMiddleware(
                         isShortcut = it.isShortcut,
                     )
                 }
-        } + ModuleToolbarBridge.actions(uiContext, Source.AddressBar.BrowserEnd)
+        }
     }
 
     /**

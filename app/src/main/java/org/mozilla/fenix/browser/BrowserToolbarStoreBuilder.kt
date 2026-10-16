@@ -163,6 +163,10 @@ object BrowserToolbarStoreBuilder {
                                 )
                             )
                     },
-            )
+            ).also { toolbarStore ->
+                // Module buttons are registered after the store was built, so the bridge has to be told both the store
+                // and a context for the button icons, and refresh the toolbar whenever the module set changes.
+                ModuleToolbarBridge.attach(activity, toolbarStore)
+            }
         }
 }

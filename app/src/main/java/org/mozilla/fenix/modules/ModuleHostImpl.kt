@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.modules
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Resources
 import android.util.Log
@@ -25,6 +26,7 @@ import org.mozilla.fenix.utils.Settings
  * because modules are enabled on the loader thread while menu items are read on the main thread.
  */
 internal class ModuleHostImpl(
+    override val context: Context,
     private val module: BrowserModule,
     override val resources: Resources,
     private val granted: Set<ModulePermission>,

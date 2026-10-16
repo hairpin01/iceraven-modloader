@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.modules.api
 
+import android.content.Context
 import android.content.res.Resources
 import android.graphics.Bitmap
 
@@ -166,6 +167,18 @@ interface BrowserModule {
  * system explicit and versionable.
  */
 interface ModuleHost {
+
+    /**
+     * Application context of the browser, for everything the module API does not wrap.
+     *
+     * A GeckoMod is native code running inside the browser process, so this is full access: activities, dialogs,
+     * services, files, network, anything the app itself can do. That is why [ModulePermission] is about what the user
+     * is told before installing, not about sandboxing the module afterwards.
+     *
+     * Never cache an Activity from here, it is destroyed while the browser keeps running. Use the application context
+     * and post to the main thread before touching the UI.
+     */
+    val context: Context
 
     /**
      * Resources packaged inside the plugin archive.

@@ -1,5 +1,9 @@
 package com.example.geckomod
 
+import android.app.AlertDialog
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import org.mozilla.fenix.modules.api.BrowserModule
 import org.mozilla.fenix.modules.api.ModuleColorSlot
 import org.mozilla.fenix.modules.api.ModuleHost
@@ -39,18 +43,19 @@ class ExampleModule : BrowserModule {
 
     override fun onEnable(host: ModuleHost) {
         buttonVisible = host.getBooleanPref(PREF_BUTTON_VISIBLE, true)
-        val taps = host.getStringPref(PREF_TAPS, "0")
 
         host.addMenuItem(
             ModuleMenuItem(
                 id = "example-menu",
                 label = "Example GeckoMod",
-                onClick = { host.log("menu entry tapped $taps time(s)") },
+                onClick = { showAlert(host, "Example GeckoMod is alive") },
             ),
         )
 
         publishToolbarAction(host)
         publishSetting(host)
+
+        showAlert(host, "Example GeckoMod loaded")
 
         host.setThemeColor(ModuleThemeScope.ALL, ModuleColorSlot.PRIMARY, GREEN)
         host.setThemeColor(ModuleThemeScope.ALL, ModuleColorSlot.PRIMARY_CONTAINER, DARK_GREEN)
@@ -91,6 +96,22 @@ class ExampleModule : BrowserModule {
         )
     }
 
+    private fun showAlert(host: ModuleHost, message: String) {
+        // onEnable runs on the loader thread, and a dialog needs a main thread window.
+        Handler(Looper.getMainLooper()).post {
+            runCatching {
+                AlertDialog.Builder(host.context)
+                    .setTitle(name)
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }.onFailure {
+                // Application context without a window: fall back to something that always works.
+                Toast.makeText(host.context, message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     // Hex literals above Int.MAX_VALUE are Longs, so they can not be const val.
     private val GREEN = 0xFF00AA00.toInt()
     private val DARK_GREEN = 0xFF003300.toInt()
@@ -99,6 +120,5 @@ class ExampleModule : BrowserModule {
 
     private companion object {
         const val PREF_BUTTON_VISIBLE = "geckomod_example_button_visible"
-        const val PREF_TAPS = "geckomod_example_taps"
     }
 }

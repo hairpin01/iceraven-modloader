@@ -395,6 +395,7 @@ object ModuleManager {
         }
 
         val host = ModuleHostImpl(
+            context = context.applicationContext,
             module = loaded.module,
             resources = loaded.resources,
             granted = loaded.grantedPermissions,
