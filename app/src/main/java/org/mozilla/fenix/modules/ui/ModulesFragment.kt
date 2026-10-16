@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
@@ -19,12 +20,14 @@ import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mozilla.fenix.R
 import org.mozilla.fenix.modules.ModuleManager
 import org.mozilla.fenix.modules.ModuleManager.ModuleRecord
 import org.mozilla.fenix.modules.ModulePreferences
+import org.mozilla.fenix.modules.api.ModuleSetting
 
 /**
  * Settings screen that installs, enables, disables and removes runtime modules.
@@ -81,7 +84,10 @@ class ModulesFragment : PreferenceFragmentCompat() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                ModuleManager.state.collect { rebuild() }
+                // Both flows matter: a module can change its own settings without the list of modules changing, and
+                // StateFlow drops emissions of equal values, so the settings flow has to be observed as well.
+                combine(ModuleManager.state, ModuleManager.settings) { _, _ -> }
+                    .collect { rebuild() }
             }
         }
     }
@@ -138,6 +144,65 @@ class ModulesFragment : PreferenceFragmentCompat() {
                 }
             },
         )
+
+        addSettings(category, record)
+    }
+
+    /**
+     * Renders the settings a module exposed through [ModuleHost.addSetting], directly under its own switch.
+     *
+     * Modules own the values: every change is handed back to the module callback, which is expected to store the new
+     * value and publish an updated setting.
+     */
+    private fun addSettings(category: PreferenceCategory, record: ModuleRecord) {
+        if (!record.enabled || record.error != null) return
+
+        ModuleManager.settings.value[record.installId]?.forEach { setting ->
+            val context = requireContext()
+            val key = getString(R.string.pref_key_modules_setting) + record.installId + setting.key
+
+            category.add(
+                when (setting) {
+                    is ModuleSetting.Switch -> SwitchPreferenceCompat(context).apply {
+                        this.key = key
+                        isPersistent = false
+                        isIconSpaceReserved = false
+                        title = setting.title
+                        summary = setting.summary
+                        isChecked = setting.checked
+                        setOnPreferenceChangeListener { _, newValue ->
+                            setting.onCheckedChange(newValue as Boolean)
+                            true
+                        }
+                    }
+
+                    is ModuleSetting.Text -> EditTextPreference(context).apply {
+                        this.key = key
+                        isPersistent = false
+                        isIconSpaceReserved = false
+                        title = setting.title
+                        summary = setting.summary
+                        setText(setting.value)
+                        setOnPreferenceChangeListener { _, newValue ->
+                            setting.onValueChange(newValue as String?)
+                            true
+                        }
+                    }
+
+                    is ModuleSetting.Action -> Preference(context).apply {
+                        this.key = key
+                        isPersistent = false
+                        isIconSpaceReserved = false
+                        title = setting.title
+                        summary = setting.summary
+                        setOnPreferenceClickListener {
+                            setting.onClick()
+                            true
+                        }
+                    }
+                },
+            )
+        }
     }
 
     private fun summaryFor(record: ModuleRecord): CharSequence {

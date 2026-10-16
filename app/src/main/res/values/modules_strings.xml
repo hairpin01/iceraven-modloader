@@ -18,6 +18,7 @@
     <string name="pref_key_modules_allow_untrusted" translatable="false">pref_key_modules_allow_untrusted</string>
     <string name="pref_key_modules_switch" translatable="false">pref_key_module_switch_</string>
     <string name="pref_key_modules_info" translatable="false">pref_key_module_info_</string>
+    <string name="pref_key_modules_setting" translatable="false">pref_key_module_setting_</string>
     <string name="pref_key_modules_docs" translatable="false">pref_key_modules_docs</string>
 
     <string name="modules_install_title">Install module from file</string>

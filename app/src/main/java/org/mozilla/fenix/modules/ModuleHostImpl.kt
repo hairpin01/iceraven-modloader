@@ -12,7 +12,9 @@ import org.mozilla.fenix.modules.api.ModuleColorSlot
 import org.mozilla.fenix.modules.api.ModuleHost
 import org.mozilla.fenix.modules.api.ModuleMenuItem
 import org.mozilla.fenix.modules.api.ModulePermission
+import org.mozilla.fenix.modules.api.ModuleSetting
 import org.mozilla.fenix.modules.api.ModuleThemeScope
+import org.mozilla.fenix.modules.api.ModuleToolbarAction
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -31,12 +33,22 @@ internal class ModuleHostImpl(
 
     private val lock = Any()
     private val items = mutableListOf<ModuleMenuItem>()
+    private val toolbar = mutableListOf<ModuleToolbarAction>()
+    private val settings = mutableListOf<ModuleSetting>()
     private val themeOverrides = mutableMapOf<ModuleThemeScope, MutableMap<ModuleColorSlot, Int>>()
     private val browserPreferences: SharedPreferences = browserSettings.preferences
 
     /** Menu items currently contributed by this module. */
     val menuItems: List<ModuleMenuItem>
         get() = synchronized(lock) { items.toList() }
+
+    /** Toolbar buttons currently contributed by this module. */
+    val toolbarActions: List<ModuleToolbarAction>
+        get() = synchronized(lock) { toolbar.toList() }
+
+    /** Settings rows currently contributed by this module. */
+    val moduleSettings: List<ModuleSetting>
+        get() = synchronized(lock) { settings.toList() }
 
     /** Colour overrides currently registered by this module, as `scope -> slot -> ARGB`. */
     val colors: Map<ModuleThemeScope, Map<ModuleColorSlot, Int>>
@@ -57,6 +69,44 @@ internal class ModuleHostImpl(
         synchronized(lock) {
             if (items.isEmpty()) return
             items.clear()
+        }
+        onChanged()
+    }
+
+    override fun addToolbarAction(action: ModuleToolbarAction) {
+        require(ModulePermission.TOOLBAR in module.permissions) {
+            "Module ${module.id} did not declare ${ModulePermission.TOOLBAR}"
+        }
+        synchronized(lock) {
+            toolbar.removeAll { it.id == action.id }
+            toolbar.add(action)
+        }
+        onChanged()
+    }
+
+    override fun removeToolbarActions() {
+        synchronized(lock) {
+            if (toolbar.isEmpty()) return
+            toolbar.clear()
+        }
+        onChanged()
+    }
+
+    override fun addSetting(setting: ModuleSetting) {
+        require(ModulePermission.SETTINGS in module.permissions) {
+            "Module ${module.id} did not declare ${ModulePermission.SETTINGS}"
+        }
+        synchronized(lock) {
+            settings.removeAll { it.key == setting.key }
+            settings.add(setting)
+        }
+        onChanged()
+    }
+
+    override fun removeSettings() {
+        synchronized(lock) {
+            if (settings.isEmpty()) return
+            settings.clear()
         }
         onChanged()
     }
@@ -115,6 +165,8 @@ internal class ModuleHostImpl(
             .onFailure { Log.w(LOG_TAG, "onDisable failed for ${module.id}", it) }
         synchronized(lock) {
             items.clear()
+            toolbar.clear()
+            settings.clear()
             themeOverrides.clear()
         }
         onChanged()

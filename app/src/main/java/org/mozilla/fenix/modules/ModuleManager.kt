@@ -6,6 +6,8 @@ package org.mozilla.fenix.modules
 
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,7 +22,9 @@ import org.mozilla.fenix.modules.ModulePluginLoader.LoadedModule
 import org.mozilla.fenix.modules.api.BrowserModule
 import org.mozilla.fenix.modules.api.ModuleColorSlot
 import org.mozilla.fenix.modules.api.ModuleMenuItem
+import org.mozilla.fenix.modules.api.ModuleSetting
 import org.mozilla.fenix.modules.api.ModuleThemeScope
+import org.mozilla.fenix.modules.api.ModuleToolbarAction
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -61,6 +65,17 @@ object ModuleManager {
 
     private val _menuItems = MutableStateFlow<List<ModuleMenuItem>>(emptyList())
     val menuItems: StateFlow<List<ModuleMenuItem>> = _menuItems.asStateFlow()
+
+    private val _toolbarActions = MutableStateFlow<List<ModuleToolbarAction>>(emptyList())
+    val toolbarActions: StateFlow<List<ModuleToolbarAction>> = _toolbarActions.asStateFlow()
+
+    /**
+     * Settings rows of every enabled module, as `installId -> rows`, in load order.
+     *
+     * Rendered by the module manager below the module's own switch.
+     */
+    private val _settings = MutableStateFlow<Map<String, List<ModuleSetting>>>(emptyMap())
+    val settings: StateFlow<Map<String, List<ModuleSetting>>> = _settings.asStateFlow()
 
     /**
      * Colour overrides of every enabled module, as `scope -> slot -> ARGB`, in load order.
@@ -193,6 +208,26 @@ object ModuleManager {
         publish()
     }
 
+    /**
+ * Runs the callback of the toolbar button with the given id, on the main thread.
+ *
+ * Buttons disappear from the toolbar as soon as their module is disabled, but a tap can still be in flight, so unknown
+ * ids are ignored instead of failing.
+ */
+    fun invokeToolbarAction(actionId: String) {
+        val action = synchronized(lock) {
+            hosts.values.flatMap { it.toolbarActions }.firstOrNull { it.id == actionId }
+        } ?: return
+
+        runCatching {
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                action.onClick()
+            } else {
+                Handler(Looper.getMainLooper()).post { action.onClick() }
+            }
+        }.onFailure { Log.w(TAG, "Toolbar action $actionId of a module failed", it) }
+    }
+
     private fun loadAll(context: Context, prefs: ModulePreferences) {
         val settings = Settings(context)
         val directory = File(context.filesDir, MODULES_DIR)
@@ -289,6 +324,8 @@ object ModuleManager {
         synchronized(lock) {
             _state.value = records.values.toList()
             _menuItems.value = hosts.values.flatMap { it.menuItems }
+            _toolbarActions.value = hosts.values.flatMap { it.toolbarActions }
+            _settings.value = hosts.mapValues { (_, host) -> host.moduleSettings }
 
             val overrides = LinkedHashMap<ModuleThemeScope, MutableMap<ModuleColorSlot, Int>>()
             hosts.values.forEach { host ->

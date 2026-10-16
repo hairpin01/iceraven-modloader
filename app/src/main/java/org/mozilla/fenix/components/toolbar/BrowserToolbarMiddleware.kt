@@ -804,7 +804,7 @@ class BrowserToolbarMiddleware(
             }
             .map { config ->
                 buildAction(config.action, Source.AddressBar.BrowserStart)
-            }
+            } + ModuleToolbarBridge.actions(uiContext, Source.AddressBar.BrowserStart)
     }
 
     /**
@@ -871,7 +871,7 @@ class BrowserToolbarMiddleware(
                         isShortcut = it.isShortcut,
                     )
                 }
-        }
+        } + ModuleToolbarBridge.actions(uiContext, Source.AddressBar.BrowserEnd)
     }
 
     /**

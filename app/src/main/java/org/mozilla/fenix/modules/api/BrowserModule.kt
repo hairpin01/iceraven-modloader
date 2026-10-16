@@ -26,13 +26,19 @@ enum class ModulePermission {
 
     /** Allows recolouring the browser through [ModuleHost.setThemeColor] and [ModuleHost.clearThemeColors]. */
     THEME,
+
+    /** Allows adding buttons to the browser toolbar through [ModuleHost.addToolbarAction]. */
+    TOOLBAR,
+
+    /** Allows adding rows to the module settings screen through [ModuleHost.addSetting]. */
+    SETTINGS,
 }
 
 /**
  * Which built in theme a colour override applies to.
  *
- * The browser ships four themes (light, dark, OLED and private browsing). Overrides registered with [ALL] are applied to
- * every one of them, which is what most theme modules want; the other scopes are for modules that only care about, say,
+ * The browser ships four themes (light, dark, OLED and private). Overrides registered with [ALL] apply to every one
+ * of them, which is what most theme modules want; the other scopes are for modules that only care about, say,
  * private browsing.
  */
 enum class ModuleThemeScope {
@@ -46,8 +52,8 @@ enum class ModuleThemeScope {
 /**
  * Colour slots a module can override.
  *
- * The first group is the browser's own palette (the "Acorn" tokens, e.g. form defaults, information, success and warning
- * colours), the second group is the Material 3 colour scheme most components are built on. Slots that are not overridden
+ * The first group is the browser's own palette (the "Acorn" tokens: form defaults, information, success, warning),
+ * the second group is the Material 3 colour scheme most components are built on. Slots that are not overridden
  * keep the value the browser shipped with, so a module only has to name the handful of colours it actually changes.
  */
 enum class ModuleColorSlot {
@@ -179,6 +185,29 @@ interface ModuleHost {
     /** Removes every menu item registered by this module. */
     fun removeMenuItems()
 
+    /**
+     * Adds a button to the browser toolbar, next to the WebExtension browser actions.
+     *
+     * Requires [ModulePermission.TOOLBAR]. Buttons with the same [ModuleToolbarAction.id] are replaced. The toolbar has
+     * room for a handful of buttons only, so modules that register several should keep [ModuleToolbarAction.visible]
+     * cheap to toggle.
+     */
+    fun addToolbarAction(action: ModuleToolbarAction)
+
+    /** Removes every toolbar button registered by this module. */
+    fun removeToolbarActions()
+
+    /**
+     * Adds a row to this module's section in the module manager.
+     *
+     * Requires [ModulePermission.SETTINGS]. Rows with the same key are replaced. Call the matching callback from the
+     * module whenever its own state changes, the host re-reads the value every time it rebuilds the screen.
+     */
+    fun addSetting(setting: ModuleSetting)
+
+    /** Removes every settings row registered by this module. */
+    fun removeSettings()
+
     /** Reads a preference. Requires [ModulePermission.PREFERENCES_READ] or [ModulePermission.PREFERENCES_WRITE]. */
     fun getBooleanPref(key: String, default: Boolean): Boolean
 
@@ -227,3 +256,73 @@ data class ModuleMenuItem(
     /** Invoked on the main thread when the entry is tapped. */
     val onClick: () -> Unit,
 )
+
+/**
+ * Description of a toolbar button contributed by a module.
+ *
+ * Module buttons are rendered by the same code path as WebExtension browser actions: they sit next to the address bar,
+ * outside of the URL box, and can carry a tinted icon.
+ */
+data class ModuleToolbarAction(
+    /** Identifier of the button, unique within the module. */
+    val id: String,
+    /** Text shown as the button's content description, also used as its long press label. */
+    val label: String,
+    /** Icon of the button. A tinted monochrome icon matches the browser best. */
+    val icon: Bitmap? = null,
+    /** Whether the button is shown at all. */
+    val visible: Boolean = true,
+    /** Whether the button reacts to taps. */
+    val enabled: Boolean = true,
+    /** Invoked on the main thread when the button is tapped. */
+    val onClick: () -> Unit,
+)
+
+/**
+ * A single row in a module's section of the module manager.
+ *
+ * Rows are the module's own settings UI. The host does not store their values: the module decides what a value means,
+ * receives the change through the callback and publishes the new value by registering an updated row.
+ */
+sealed interface ModuleSetting {
+
+    /** Identifier of the row, unique within the module. */
+    val key: String
+
+    /** Text shown as the row title. */
+    val title: String
+
+    /** Optional text shown under the title. */
+    val summary: String?
+
+    /** A two state row. */
+    data class Switch(
+        override val key: String,
+        override val title: String,
+        override val summary: String? = null,
+        /** Current state. */
+        val checked: Boolean,
+        /** Invoked on the main thread when the user flips the row. */
+        val onCheckedChange: (Boolean) -> Unit,
+    ) : ModuleSetting
+
+    /** A free text row, edited in a dialog. */
+    data class Text(
+        override val key: String,
+        override val title: String,
+        override val summary: String? = null,
+        /** Current value. */
+        val value: String,
+        /** Invoked on the main thread when the user confirms a new value. */
+        val onValueChange: (String) -> Unit,
+    ) : ModuleSetting
+
+    /** A row that runs something, for example opening a module specific page. */
+    data class Action(
+        override val key: String,
+        override val title: String,
+        override val summary: String? = null,
+        /** Invoked on the main thread when the row is tapped. */
+        val onClick: () -> Unit,
+    ) : ModuleSetting
+}

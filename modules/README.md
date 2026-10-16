@@ -25,9 +25,11 @@ module is compiled against resolve to the browser's own classes at runtime. No s
 | Type | Purpose |
 |---|---|
 | `BrowserModule` | Entry point: `id`, `name`, `version`, `description`, `permissions`, `onEnable`, `onDisable` |
-| `ModuleHost` | `resources`, `addMenuItem`, `removeMenuItems`, `getBooleanPref`, `getStringPref`, `setPref`, `setThemeColor`, `clearThemeColors`, `log` |
+| `ModuleHost` | `resources`, `addMenuItem`, `removeMenuItems`, `addToolbarAction`, `removeToolbarActions`, `addSetting`, `removeSettings`, `getBooleanPref`, `getStringPref`, `setPref`, `setThemeColor`, `clearThemeColors`, `log` |
 | `ModuleMenuItem` | Browser menu entry: `id`, `label`, `icon`, `enabled`, `badgeText`, `onClick` |
-| `ModulePermission` | `PREFERENCES_READ`, `PREFERENCES_WRITE`, `MENU_ITEMS`, `THEME` |
+| `ModuleToolbarAction` | Toolbar button: `id`, `label`, `icon`, `visible`, `enabled`, `onClick` |
+| `ModuleSetting` | Row rendered in the module manager: `Switch`, `Text` or `Action` |
+| `ModulePermission` | `PREFERENCES_READ`, `PREFERENCES_WRITE`, `MENU_ITEMS`, `TOOLBAR`, `SETTINGS`, `THEME` |
 | `ModuleColorSlot` | Colour slots: the Acorn palette plus the Material 3 scheme |
 | `ModuleThemeScope` | `ALL`, `LIGHT`, `DARK`, `OLED`, `PRIVATE` |
 
@@ -121,6 +123,7 @@ are reported on the module row instead of failing silently.
 | `app/src/main/java/org/mozilla/fenix/modules/ModulePluginLoader.kt` | Signature check, `DexClassLoader`, resources |
 | `app/src/main/java/org/mozilla/fenix/modules/ModuleHostImpl.kt` | Browser side of the API, permission enforcement |
 | `app/src/main/java/org/mozilla/fenix/modules/ModuleThemeOverrides.kt` | Merges module colours into the Acorn and Material palettes |
+| `app/src/main/java/org/mozilla/fenix/modules/ModuleToolbarBridge.kt` | Turns module toolbar actions into `ActionButton`s and routes taps back |
 | `app/src/main/java/org/mozilla/fenix/modules/ModulePreferences.kt` | Module manager preferences |
 | `app/src/main/java/org/mozilla/fenix/modules/ui/ModulesFragment.kt` | Settings screen |
 | `app/src/main/res/xml/modules_preferences.xml` | Screen layout |
@@ -128,7 +131,7 @@ are reported on the module row instead of failing silently.
 
 ## Upstream merges
 
-Six upstream files are touched, each in one place only:
+Eight upstream files are touched, each in one place only:
 
 | File | Change |
 |---|---|
@@ -138,5 +141,7 @@ Six upstream files are touched, each in one place only:
 | `res/xml/preferences.xml` | one preference entry |
 | `res/navigation/nav_graph.xml` | one destination and one action |
 | `theme/FirefoxTheme.kt` | two palette arguments wrapped in `ModuleThemeOverrides.applyTo` |
+| `components/toolbar/BrowserToolbarMiddleware.kt` | appends module actions to the start and end browser action lists |
+| `browser/BrowserToolbarStoreBuilder.kt` | one more toolbar middleware |
 
 Everything else lives under `modules/`, so an upstream merge only has to be taught these five lines once.
