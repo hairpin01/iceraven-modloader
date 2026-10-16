@@ -43,6 +43,7 @@ object ModuleManager {
     private const val TAG = "IceravenModules"
     private const val MODULES_DIR = "modules"
     private const val INSTALL_ID_LENGTH = 16
+    private const val LOADER_THREAD_NAME = "iceraven-modules"
 
     /** Everything the module manager screen needs to render one installed archive. */
     data class ModuleRecord(
@@ -102,14 +103,15 @@ object ModuleManager {
     /**
      * Starts the module system for this process if it was not started yet.
      *
-     * Safe to call from anywhere, including the UI. Loading happens on a background thread, so the caller never blocks;
-     * observe [state] to learn when the modules are ready.
+     * Safe to call from anywhere, including [android.app.Application.onCreate]: only the application context is
+     * remembered here, everything that touches disk runs on the loader thread. Fenix runs StrictMode with a death
+     * penalty for main thread disk access, so touching [ModulePreferences] here would kill the browser on startup.
+     * Observe [state] to learn when the modules are ready.
      */
     fun ensureStarted(context: Context) {
         if (!started.compareAndSet(false, true)) return
 
         appContext = context.applicationContext
-        preferences = ModulePreferences(appContext!!)
         reload()
     }
 
@@ -121,9 +123,18 @@ object ModuleManager {
      */
     fun reload() {
         val context = appContext ?: return
-        val prefs = preferences ?: return
 
-        Thread({ loadAll(context, prefs) }, "iceraven-modules").apply {
+        onLoaderThread { loadAll(context, preferencesFor(context)) }
+    }
+
+    /** Preferences handle, created on first use. Must only be called from the loader thread. */
+    private fun preferencesFor(context: Context): ModulePreferences =
+        preferences ?: synchronized(this) {
+            preferences ?: ModulePreferences(context).also { preferences = it }
+        }
+
+    private fun onLoaderThread(block: () -> Unit) {
+        Thread(block, LOADER_THREAD_NAME).apply {
             isDaemon = true
             start()
         }
@@ -137,7 +148,6 @@ object ModuleManager {
      */
     fun install(context: Context, uri: Uri): Result<String> {
         val app = context.applicationContext
-        val prefs = preferences ?: ModulePreferences(app).also { preferences = it }
         val directory = File(app.filesDir, MODULES_DIR).apply { mkdirs() }
         val incoming = File(directory, "incoming_${System.currentTimeMillis()}.apk")
 
@@ -176,25 +186,29 @@ object ModuleManager {
     /** Removes the archive and all state of the module with the given [installId]. */
     fun uninstall(context: Context, installId: String) {
         val app = context.applicationContext
-        val prefs = preferences ?: ModulePreferences(app).also { preferences = it }
-        val archive = File(File(app.filesDir, MODULES_DIR), "$installId.apk")
 
+        // Drop the running module first so the UI reacts immediately, then delete the archive on the loader thread:
+        // File.exists and the preferences file both read from disk, which is fatal on the main thread.
         synchronized(lock) {
             hosts.remove(installId)?.dispose()
             records.remove(installId)
         }
-        if (archive.exists() && !archive.delete()) {
-            Log.w(TAG, "Could not delete archive ${archive.name}")
-        }
-        prefs.forget(installId)
         publish()
+
+        onLoaderThread {
+            val archive = File(File(app.filesDir, MODULES_DIR), "$installId.apk")
+            if (archive.exists() && !archive.delete()) {
+                Log.w(TAG, "Could not delete archive ${archive.name}")
+            }
+            preferencesFor(app).forget(installId)
+        }
     }
 
     /** Enables or disables a module. Both directions apply immediately, no browser restart needed. */
     fun setEnabled(context: Context, installId: String, enabled: Boolean) {
         val app = context.applicationContext
-        val prefs = preferences ?: ModulePreferences(app).also { preferences = it }
-        prefs.setEnabled(installId, enabled)
+
+        onLoaderThread { preferencesFor(app).setEnabled(installId, enabled) }
 
         if (enabled) {
             reload()
