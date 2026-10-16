@@ -12,6 +12,7 @@ import android.content.pm.Signature
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import dalvik.system.DexClassLoader
 import java.io.File
@@ -130,8 +131,7 @@ internal object ModulePluginLoader {
         applicationInfo: ApplicationInfo,
         module: BrowserModule,
     ): Set<ModulePermission> {
-        val declared = applicationInfo.metaData?.get(META_PERMISSIONS)
-            ?.toString()
+        val declared = metaString(applicationInfo.metaData, META_PERMISSIONS)
             ?.split(',')
             ?.mapNotNull { name -> ModulePermission.entries.firstOrNull { it.name == name.trim() } }
             ?.toSet()
@@ -157,18 +157,28 @@ internal object ModulePluginLoader {
 
         return ModuleInfo(
             id = module.id,
-            name = metaData?.get(META_NAME)?.toString()?.takeIf { it.isNotBlank() } ?: label ?: module.name,
-            description = metaData?.get(META_DESCRIPTION)?.toString()?.takeIf { it.isNotBlank() }
-                ?: module.description.takeIf { it.isNotBlank() },
-            version = metaData?.get(META_VERSION)?.toString()?.toIntOrNull()
+            name = metaString(metaData, META_NAME) ?: label ?: module.name,
+            description = metaString(metaData, META_DESCRIPTION) ?: module.description.takeIf { it.isNotBlank() },
+            version = metaString(metaData, META_VERSION)?.toIntOrNull()
                 ?: versionOf(packageInfo)
                 ?: module.version,
             versionName = packageInfo.versionName,
-            author = metaData?.get(META_AUTHOR)?.toString()?.takeIf { it.isNotBlank() },
-            updateUrl = metaData?.get(META_UPDATE_URL)?.toString()?.takeIf { it.isNotBlank() },
+            author = metaString(metaData, META_AUTHOR),
+            updateUrl = metaString(metaData, META_UPDATE_URL),
             packageName = packageInfo.packageName,
         )
     }
+
+    /**
+     * Reads a manifest meta-data value as text.
+     *
+     * [Bundle.get] is deprecated in favour of the typed accessors, but those only return the exact type the value was
+     * parsed as: `android:value="1"` comes back as an integer while `android:value="1.0"` comes back as a string. Going
+     * through the deprecated accessor keeps both forms working, which matters because the values come from user land.
+     */
+    @Suppress("DEPRECATION")
+    private fun metaString(metaData: Bundle?, key: String): String? =
+        metaData?.get(key)?.toString()?.takeIf { it.isNotBlank() }
 
     /** Long version code as a plain number, so it can be compared against the declared version. */
     private fun versionOf(packageInfo: PackageInfo): Int? = runCatching {
